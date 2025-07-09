@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Load your CSV
+# Load CSV
 df = pd.read_csv('rpm (2).csv', quoting=1, on_bad_lines='skip', low_memory=False)
 df.dropna(how='all', inplace=True)
 df = df.iloc[:, :27]
@@ -22,122 +22,84 @@ required_columns = [
 valid_id_mask = df['ID'].astype(str).str.match(r'^C\d+$', na=False)
 df['Valid_ID'] = valid_id_mask
 
-# Forward-fill the last known valid ID to group the child rows
-df['Filled_ID'] = df['ID'].where(df['Valid_ID']).ffill()
-
-# Columns you want to merge/concatenate from children into parent
-merge_columns = ['Steps', 'Steps (Expected Result)', 'Steps (Step)', 'Steps (Additional Info)']
-for col in merge_columns:
-    if col not in df.columns:
-        df[col] = None
-
-# Group by the filled ID, combine rows into one
-grouped = df.groupby('Filled_ID', sort=False)
-
-# # Build a new DataFrame by keeping the first row in each group and merging extra data
-# final_rows = []
-# for filled_id, group in grouped:
-#     # Take the first non-null row as base
-#     base_row = group.iloc[0].copy()
-
-#     # Concatenate mergeable fields
-#     for col in merge_columns:
-#         combined = group[col].dropna().astype(str).str.strip()
-#         base_row[col] = '\n'.join(combined[combined != ''])
-
-#     final_rows.append(base_row)
-
-# # Create the cleaned DataFrame
-# cleaned_df = pd.DataFrame(final_rows)
-
-# # Save to file (optional)
-# cleaned_df.to_csv('merged_test_cases.csv', index=False)
-
 valid_rows = df[valid_id_mask].copy()
 
-# Missing Steps
+# Missing Steps 
 
 # Define the step-related columns
-# step_cols = ['Steps', 'Steps (Expected Result)', 'Steps (Step)', 'Steps (Additional Info)']
+step_cols = ['Steps', 'Steps (Expected Result)', 'Steps (Step)', 'Steps (Additional Info)']
 
-# # Identify rows with all step columns missing (NaN or blank)
-# missing_steps_mask = valid_rows[step_cols].isna().all(axis=1)
-# missing_steps_rows = valid_rows[missing_steps_mask]
+# Identify rows with all step columns missing (NaN or blank)
+missing_steps_mask = valid_rows[step_cols].isna().all(axis=1)
+missing_steps_rows = valid_rows[missing_steps_mask]
 
-# # Count
-# # missing_count = missing_steps_mask.sum()
-# # present_count = len(valid_rows) - missing_count
+# Count
+# missing_count = missing_steps_mask.sum()
+missing_steps_count = missing_steps_rows.shape[0]
+has_steps_count = len(valid_rows) - missing_steps_count
 
-# missing_steps_count = missing_steps_rows.shape[0]
-# has_steps_count = len(valid_rows) - missing_steps_count
+# Pie chart
+plt.figure(figsize=(8, 5))
+plt.pie(
+    [missing_steps_count, has_steps_count],
+    labels=["Missing Steps (1,058/18,307 test cases)", "Has Steps (17,249/18,307 test cases)"],
+    autopct='%1.1f%%',
+    startangle=90
+)
+plt.title("Step Completion in Test Cases")
+plt.savefig("missing_steps_pie_chart2.png")  # optional: save to file
+plt.show()
 
-# # Pie chart
-# plt.figure(figsize=(8, 5))
-# plt.pie(
-#     [missing_steps_count, has_steps_count],
-#     labels=["Missing Steps (1,058/18,307 test cases)", "Has Steps (17,249/18,307 test cases)"],
-#     autopct='%1.1f%%',
-#     startangle=90
-# )
-# plt.title("Step Completion in Test Cases")
-# plt.savefig("missing_steps_pie_chart2.png")  # optional: save to file
-# plt.show()
+print(missing_steps_rows[['ID', 'Title', 'Created On']].to_string(index=False))
+print(f"🧱 {missing_steps_count} valid test cases are missing all step-related columns.")
+print(f"✅ {has_steps_count} valid test cases have at least one step-related field filled.")
 
-# # print(missing_steps_rows[['ID', 'Title', 'Created On']].to_string(index=False))
+# Created On older than 01/01/2024
+valid_rows['Created On'] = pd.to_datetime(valid_rows['Created On'], errors='coerce')
+created_old = valid_rows['Created On'] >= pd.Timestamp('2024-01-01')
 
-# print(f"🧱 {missing_steps_count} valid test cases are missing all step-related columns.")
-# print(f"✅ {has_steps_count} valid test cases have at least one step-related field filled.")
-# exit
+print(f"📅 {created_old.sum()} valid test cases were created after 01/01/2024.")
+print("📄 Rows (Excel-style):", (valid_rows[created_old].index + 2).tolist()) # 3689 cases!
 
+# Pie chart values
+labels = ['Created Before 2024', 'Created In or After 2024']
+sizes = [created_old.sum(), len(valid_rows) - created_old.sum()]
+colors = ["#ff9999",'#66b3ff']
 
-# # Created On older than 01/01/2024
-# valid_rows['Created On'] = pd.to_datetime(valid_rows['Created On'], errors='coerce')
-# created_old_mask = valid_rows['Created On'] >= pd.Timestamp('2024-01-01')
-
-# print(f"📅 {created_old_mask.sum()} valid test cases were created after 01/01/2024.")
-# print("📄 Rows (Excel-style):", (valid_rows[created_old_mask].index + 2).tolist()) # 3689 cases!
-
-
-# # Created On: parse and mask
-# valid_rows['Created On'] = pd.to_datetime(valid_rows['Created On'], errors='coerce')
-# created_old = valid_rows['Created On'] < pd.Timestamp('2024-01-01')
-
-# # Pie chart values
-# labels = ['Created Before 2024', 'Created In or After 2024']
-# sizes = [created_old.sum(), len(valid_rows) - created_old.sum()]
-# colors = ["#ff9999",'#66b3ff']
-
-# # Plot
-# plt.figure(figsize=(6,6))
-# plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
-# plt.title('Test Case Creation Dates')
-# plt.axis('equal')  # Equal aspect ratio ensures pie is a circle
-# plt.savefig("created_on_distribution.png")
-# plt.show()
+# Plot
+plt.figure(figsize=(6,6))
+plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+plt.title('Test Case Creation Dates')
+plt.axis('equal')  # Equal aspect ratio ensures pie is a circle
+plt.savefig("created_on_distribution.png")
+plt.show()
 
 
+# Test cases created per year
 
-# # Ensure Created On is in datetime format
-# df['Created On'] = pd.to_datetime(df['Created On'], errors='coerce')
+# Ensure Created On is in datetime format
+df['Created On'] = pd.to_datetime(df['Created On'], errors='coerce')
 
 
-# # Extract year
-# valid_rows['Created Year'] = valid_rows['Created On'].dt.year
+# Extract year
+valid_rows['Created Year'] = valid_rows['Created On'].dt.year
 
-# # Count per year
-# created_per_year = valid_rows['Created Year'].value_counts().sort_index()
+# Count per year
+created_per_year = valid_rows['Created Year'].value_counts().sort_index()
 
-# # Plot
-# plt.figure(figsize=(8, 5))
-# created_per_year.plot(kind='bar')
-# plt.title("Test Cases Created per Year")
-# plt.xlabel("Year")
-# plt.ylabel("Number of Test Cases")
-# plt.tight_layout()
-# plt.savefig("test_cases_created_yoy.png")
-# plt.show()
+# Plot
+plt.figure(figsize=(8, 5))
+created_per_year.plot(kind='bar')
+plt.title("Test Cases Created per Year")
+plt.xlabel("Year")
+plt.ylabel("Number of Test Cases")
+plt.tight_layout()
+plt.savefig("test_cases_created_yoy.png")
+plt.show()
 
-# # --- 1. Created in 2021 ---
+
+
+# Test cases created in 2025 (adjust year as needed)
 # created_2025_mask = valid_rows['Created On'].dt.year == 2025
 # created_2025 = valid_rows[created_2025_mask]
 
@@ -146,61 +108,56 @@ valid_rows = df[valid_id_mask].copy()
 # print(created_2025[['ID', 'Title', 'Created On']])
 
 
+# Updated On older than 01/01/2024 (adjust date as needed)
+valid_rows['Updated On'] = pd.to_datetime(valid_rows['Updated On'], errors='coerce')
+# Define cutoff date
+cutoff_date = pd.Timestamp("2024-01-01")
+
+# Mask for not updated since cutoff
+not_updated_mask = valid_rows['Updated On'] < cutoff_date
+not_updated_count = not_updated_mask.sum()
+updated_count = len(valid_rows) - not_updated_count
+
+# Pie chart
+labels = ["Not Updated Since 07/01/2024\n(15,663/18,307)", "Updated Since 07/01/2024\n(2,644/18,307)"]
+sizes = [not_updated_count, updated_count]
+colors = ['#ff9999', '#66b3ff']
+
+plt.figure(figsize=(6, 6))
+plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+plt.title("Test Cases Not Updated Since July 1, 2024")
+plt.axis('equal')  # Makes pie a circle
+plt.tight_layout()
+plt.savefig("not_updated_since_july_pie_chart.png")
+plt.show()
+
+# Optional print
+print(f"{not_updated_count} test cases were last updated before July 1, 2024.")
+
+updated_old_mask = valid_rows['Updated On'] >= pd.Timestamp('2024-01-01')
+
+print(f"🔄 {updated_old_mask.sum()} valid test cases were updated after 01/01/2024.")
+print("📄 Rows (Excel-style):", (valid_rows[updated_old_mask].index + 2).tolist()) # about 3700
 
 
+# Updated On
+valid_rows['Updated On'] = pd.to_datetime(valid_rows['Updated On'], errors='coerce')
+updated_old = valid_rows['Updated On'] < pd.Timestamp('2024-01-01')
 
+# Pie chart values
+labels = ['Updated Before 2024', 'Updated In or After 2024']
+sizes = [updated_old.sum(), len(valid_rows) - updated_old.sum()]
+colors = ["#ff9999",'#66b3ff']
 
-# # Updated On older than 01/01/2024
-# valid_rows['Updated On'] = pd.to_datetime(valid_rows['Updated On'], errors='coerce')
-# # Define cutoff date
-# cutoff_date = pd.Timestamp("2024-07-01")
+# Plot
+plt.figure(figsize=(6,6))
+plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+plt.title('Test Case Updated Dates')
+plt.axis('equal')  # Equal aspect ratio ensures pie is a circle
+plt.savefig("updated_on_distribution.png")
+plt.show()
 
-# # Mask for not updated since cutoff
-# not_updated_mask = valid_rows['Updated On'] < cutoff_date
-# not_updated_count = not_updated_mask.sum()
-# updated_count = len(valid_rows) - not_updated_count
-
-# # Pie chart
-# labels = ["Not Updated Since 07/01/2024\n(15,663/18,307)", "Updated Since 07/01/2024\n(2,644/18,307)"]
-# sizes = [not_updated_count, updated_count]
-# colors = ['#ff9999', '#66b3ff']
-
-# plt.figure(figsize=(6, 6))
-# plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
-# plt.title("Test Cases Not Updated Since July 1, 2024")
-# plt.axis('equal')  # Makes pie a circle
-# plt.tight_layout()
-# plt.savefig("not_updated_since_july_pie_chart.png")
-# plt.show()
-
-# # Optional print
-# print(f"{not_updated_count} test cases were last updated before July 1, 2024.")
-
-
-
-# updated_old_mask = valid_rows['Updated On'] >= pd.Timestamp('2024-01-01')
-
-# print(f"🔄 {updated_old_mask.sum()} valid test cases were updated after 01/01/2024.")
-# print("📄 Rows (Excel-style):", (valid_rows[updated_old_mask].index + 2).tolist()) # about 3700
-
-
-# # Updated On: parse and mask
-# valid_rows['Updated On'] = pd.to_datetime(valid_rows['Updated On'], errors='coerce')
-# updated_old = valid_rows['Updated On'] < pd.Timestamp('2024-01-01')
-
-# # Pie chart values
-# labels = ['Updated Before 2024', 'Updated In or After 2024']
-# sizes = [updated_old.sum(), len(valid_rows) - updated_old.sum()]
-# colors = ["#ff9999",'#66b3ff']
-
-# # Plot
-# plt.figure(figsize=(6,6))
-# plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
-# plt.title('Test Case Updated Dates')
-# plt.axis('equal')  # Equal aspect ratio ensures pie is a circle
-# plt.savefig("updated_on_distribution.png")
-# plt.show()
-
+# Updated On cases/per year
 # Ensure 'Updated On' is in datetime format for valid_rows
 valid_rows['Updated On'] = pd.to_datetime(valid_rows['Updated On'], errors='coerce')
 
@@ -221,24 +178,6 @@ plt.savefig("test_cases_updated_yoy.png")
 plt.show()
 
 
-
-# Automation type == None
-# none_automation_mask = valid_rows['Automation Type'].astype(str).str.strip().str.lower() == 'none'
-
-# print(f"🤖 {none_automation_mask.sum()} valid test cases dont have 'None' as the Automation Type.")
-# print("📄 Rows (Excel-style):", (valid_rows[none_automation_mask].index + 2).tolist()) # basically all
-
-# # Priority = Medium
-# not_medium_mask = valid_rows['Priority'].astype(str).str.strip().str.lower() != 'medium'
-
-# print(f"⚠️ {not_medium_mask.sum()} valid test cases have a Priority other than 'Medium'.")
-# print("📄 Rows (Excel-style):", (valid_rows[not_medium_mask].index + 2).tolist()) # basically all
-
-
-# # Print summary
-# # print(f"✅ Merged {len(df)} rows down to {len(cleaned_df)} test cases.")
-# print(df[df['Forecast'].notna()].index + 2)
-# count = df['Created By'].eq('Debleena Jana').sum()
-# print(f"Debleena created {count} test cases.")
-# print(valid_id_mask.sum())
-# print(((df['Title'].notna()) & (df['ID'].isna())).sum())
+# Print summary of all the data
+print(valid_id_mask.sum())
+print(((df['Title'].notna()) & (df['ID'].isna())).sum())
