@@ -1,1 +1,1 @@
-This is a script that identifies red flags in 18,000+ manual test cases exported into a csv file, i.e., which cases have any type of missing data such as missing steps, title, etc. It uses the pandas library for data manipulation and matplotlib for data visualization.
+This is a script that identifies red flags in 18,000+ manual test cases exported into a csv file. It flags which cases have any type of missing data such as missing steps, title, etc. It uses the pandas library for data manipulation and matplotlib for data visualization.
